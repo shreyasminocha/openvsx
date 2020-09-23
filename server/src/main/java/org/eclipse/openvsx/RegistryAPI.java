@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
 
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.ResultJson;
@@ -62,6 +63,9 @@ public class RegistryAPI {
 
     @Autowired
     LocalRegistryService local;
+
+    @Autowired
+    UserService users;
 
     @Autowired
     UpstreamRegistryService upstream;
@@ -331,13 +335,21 @@ public class RegistryAPI {
     })
     public ResponseEntity<ResultJson> createNamespace(@RequestBody(required = false) @ApiParam("Describes the namespace to create")
                                       NamespaceJson namespace,
-                                      @RequestParam @ApiParam("A personal access token")
+                                      @RequestParam(required = false) @ApiParam("A personal access token")
                                       String token) {
         if (namespace == null) {
             return ResponseEntity.ok(ResultJson.error("No JSON input."));
         }
         if (Strings.isNullOrEmpty(namespace.name)) {
             return ResponseEntity.ok(ResultJson.error("Missing required property 'name'."));
+        }
+        var principal = users.getOAuth2Principal();
+        UserData user = null;
+        if (principal != null) {
+            user = users.updateUser(principal);
+        }
+        if(token == null && (user == null || !user.getRole().equals("admin"))) {
+            return ResponseEntity.ok(ResultJson.error("Missing token or admin rights."));
         }
         try {
             var json = local.createNamespace(namespace, token);
